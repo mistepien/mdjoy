@@ -314,7 +314,6 @@ void setup() {
 
   timer_stop();
 
-  //wdt_enable(WDTO_250MS);
   wdt_enable(WDTO_15MS);
 }
 
@@ -959,6 +958,8 @@ void process_state_controller(word current_gamepad_state) {
     for (byte index = 0; index < 15; index++) {
       if (changed_gamepad_state & 1) {
         button(index, current_gamepad_state & 1);
+      } else if (!changed_gamepad_state) {
+        break;
       }
       changed_gamepad_state >>= 1;
       current_gamepad_state >>= 1;
@@ -1035,7 +1036,7 @@ void push_stuff() {
 
   push_joystate_and_pullstate_to_register(joystate);
 
-  push_ledstate_to_register(ctl_on_flag_blinking(blinking_autofire_led(rapidfire_sw,ledstate)));            
+  push_ledstate_to_register(ctl_on_flag_blinking(blinking_autofire_led(rapidfire_sw, ledstate)));
 
   try_push_stuff_to_EEPROM();
 }
