@@ -61,7 +61,8 @@ constexpr regs_to_state_struct regs_to_cycle[] = { { 0, 2, 3, bit(SC_CTL_ON) },
                                                    { 5, 2, 2, bit(SC_BTN_X) },
                                                    { 5, 3, 3, bit(SC_BTN_MODE) },
                                                    { 6, 0, 0, bit(SC_BTN_HOME) } };
-//constexpr word three_mode_buttons = bit(SC_CTL_ON) | bit(SC_DPAD_UP) | bit(SC_DPAD_DOWN) | bit(SC_DPAD_LEFT) | bit(SC_DPAD_RIGHT) | bit(SC_BTN_B) | bit(SC_BTN_C) | bit(SC_BTN_A) | bit(SC_BTN_START);  
+
+constexpr word three_mode_buttons = bit(SC_CTL_ON) | bit(SC_BTN_START) | bit(SC_DPAD_UP) | bit(SC_DPAD_DOWN) | bit(SC_DPAD_LEFT) | bit(SC_DPAD_RIGHT) | bit(SC_BTN_A) | bit(SC_BTN_B) | bit(SC_BTN_C);
 
 #if defined(ARDUINO_AVR_MICRO)
 
@@ -86,8 +87,7 @@ constexpr regs_to_state_struct regs_to_cycle[] = { { 0, 2, 3, bit(SC_CTL_ON) },
 #endif
 
 constexpr byte SC_INPUT_PINS = 6;
-constexpr byte SC_READS_6BTN = 15;
-constexpr byte SC_READS_3BTN = 10;
+
 #define SC_READ_DELAY_MS 0  // Must be >= 3ms to give 6-button controller time to reset
 
 
@@ -113,7 +113,7 @@ public:
   bool complex_bool_value(byte big_byte, byte tested_byte);
 private:
   byte _selectPin_bin;  // output select pin useful for HARDWARE XOR
-  byte _inputPins[SC_INPUT_PINS];
+  byte _inputPins[];
   word nod(word _input_state, word _dpad_dirs);
 };
 

@@ -337,18 +337,12 @@ void set_pullup_mode_in_setup(byte ___AMIGAmode___pullup_mode___) {
 }
 
 bool is_C64_AMIGA_mode_combination_pressed_in_setup(word _sega_state_) {
-  bool _comb_pressed = 0;
-  _comb_pressed = (_sega_state_ & _gamepad_possible_buttons) ^ (_c64_amiga_combination | bit(SC_CTL_ON));  //xor = 1 -- combination is NOT PRESSED
-  _comb_pressed ^= 1;
-
+  bool _comb_pressed = (_sega_state_ & _gamepad_possible_buttons) ^ (_c64_amiga_combination | bit(SC_CTL_ON)) ? 0 : 1;  //xor = 1 -- combination is NOT PRESSED
   return _comb_pressed;
 }
 
 bool is_pullup_mode_combination_pressed_in_setup(word _sega_state_) {
-  bool _comb_pressed = 0;
-  _comb_pressed = (_sega_state_ & _gamepad_possible_buttons) ^ (_pullup_combination | bit(SC_CTL_ON));  //xor = 1 -- combination is NOT PRESSED
-  _comb_pressed ^= 1;
-
+  bool _comb_pressed = (_sega_state_ & _gamepad_possible_buttons) ^ (_pullup_combination | bit(SC_CTL_ON)) ? 0 : 1;  //xor = 1 -- combination is NOT PRESSED
   return _comb_pressed;
 }
 

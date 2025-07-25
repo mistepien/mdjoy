@@ -101,15 +101,19 @@ void SegaController::begin(byte db9_pin_7, byte db9_pin_1, byte db9_pin_2, byte 
 }
 
 word SegaController::getState() {
-  static word _currentState;
+
 
 #if SC_READ_DELAY_MS > 0
+  static word _currentState;
   static unsigned long _lastReadTime;
   if ((millis() - _lastReadTime) < SC_READ_DELAY_MS) {
     // Not enough time has elapsed, return previously read state
     return _currentState;
   }
+#else
+  word _currentState = 0;
 #endif
+
 
   byte _readCycle_regs[8];
 
@@ -139,12 +143,11 @@ word SegaController::getState() {
   /*Here slowness is not an issue any more since reading of Sega gamepad is already done.
   What happens is processing of already collected data and producing output.*/
 
-  //changing number of cycles depending is it 3BTN-mode or 6BTN-mode
-  byte SC_READS = _currentState & bit(SC_MODE) ? SC_READS_6BTN : SC_READS_3BTN;  //_currentState is not yet cleared so we can read SC_MODE from that
+#if SC_READ_DELAY_MS > 0
+  _currentState = 0;  // Clear current state if _currentState is static
+#endif
 
-  _currentState = 0;  // Clear current state
-
-  for (byte i = 0; i < SC_READS; i++) {
+  for (byte i = 0; i < 15; i++) {
     byte __input_pins_bits__ = _inputPins[regs_to_cycle[i]._ipin_first] | _inputPins[regs_to_cycle[i]._ipin_second];
     byte __cycle__ = ~(_readCycle_regs[regs_to_cycle[i]._cycle]);
     if (complex_bool_value(__cycle__, __input_pins_bits__)) {
@@ -152,10 +155,15 @@ word SegaController::getState() {
     }
   }
 
+  if (!(_currentState & bit(SC_MODE))) {  //in 3-button mode buttons X,Y,Z,MODE and HOME are never pressed
+    _currentState &= three_mode_buttons;
+  }
+
   _currentState = nod(_currentState, bit(SC_DPAD_UP) | bit(SC_DPAD_DOWN));     //NO OPPOSITE DIRECTIONS
   _currentState = nod(_currentState, bit(SC_DPAD_RIGHT) | bit(SC_DPAD_LEFT));  //NO OPPOSITE DIRECTIONS
 
   _currentState = _currentState & bit(SC_CTL_ON) ? _currentState : 0;
+
   /*end of puting MD state into one word variable (_current)*/
 
 
