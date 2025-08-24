@@ -63,7 +63,7 @@
 #endif
 #include "SegaController.h"
 
-
+#define _nop() __asm__ volatile("nop")
 
 void SegaController::begin(byte db9_pin_7, byte db9_pin_1, byte db9_pin_2, byte db9_pin_3, byte db9_pin_4, byte db9_pin_6, byte db9_pin_9) {
   // Set pins
@@ -77,9 +77,9 @@ void SegaController::begin(byte db9_pin_7, byte db9_pin_1, byte db9_pin_2, byte 
   _inputPins[5] = bit(db9_pin_9);
 
 
-
   bitSet(DDR_REG_select_Pin, _selectPin);  // Setup selectPin as OUTPUT
   bitSet(PORT_REG_selectPin, _selectPin);  // Setup selectPin as HIGH
+
 
   /* Setup input pins
 
@@ -119,7 +119,7 @@ word SegaController::getState() {
 
   noInterrupts();
 
-  /*Here is the most time sensitive piece of code.
+/*Here is the most time sensitive piece of code.
   Being slow means failure in communication  with gamepad.
   SEGA gamepad readings of port registers are dumped to the byte array.
   It works like a kind of shiftIn -- but output is not a byte but
@@ -132,9 +132,14 @@ word SegaController::getState() {
   made it very dependent upon very accurate delay :D
   For instance SNES gamepad protocol is much better.
   */
+#pragma GCC unroll 8
   for (byte cycle = 0; cycle < 8; cycle++) {
     PIN_REG_selectPin = _selectPin_bin;  //hardware XOR
+#if ((F_CPU == 500000L) || (F_CPU == 1000000L))
+    _nop();
+#else
     _delay_us(SC_CYCLE_DELAY_US);
+#endif
     _readCycle_regs[cycle] = PIN_REG_inputPins;
   }
 

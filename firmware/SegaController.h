@@ -20,6 +20,27 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
+#if defined(ARDUINO_AVR_MICRO)
+
+#define DDR_REG_select_Pin DDRD
+#define PORT_REG_selectPin PORTD
+#define PIN_REG_selectPin PIND
+
+#define DDR_REG_inputPins DDRB
+#define PORT_REG_inputPins PORTB
+#define PIN_REG_inputPins PINB
+
+#else
+
+#define DDR_REG_select_Pin DDRD
+#define PORT_REG_selectPin PORTD
+#define PIN_REG_selectPin PIND
+
+#define DDR_REG_inputPins DDRD
+#define PORT_REG_inputPins PORTD
+#define PIN_REG_inputPins PIND
+
+#endif
 
 enum sega_state {
   SC_CTL_ON = 0,  // The controller is connected
@@ -46,15 +67,15 @@ typedef struct {
   word _output_bit;
 } regs_to_state_struct;
 
-constexpr regs_to_state_struct regs_to_cycle[] = { { 0, 2, 3, bit(SC_CTL_ON) },
-                                                   { 1, 0, 0, bit(SC_DPAD_UP) },
-                                                   { 1, 1, 1, bit(SC_DPAD_DOWN) },
-                                                   { 1, 2, 2, bit(SC_DPAD_LEFT) },
-                                                   { 1, 3, 3, bit(SC_DPAD_RIGHT) },
-                                                   { 1, 4, 4, bit(SC_BTN_B) },
-                                                   { 1, 5, 5, bit(SC_BTN_C) },
+constexpr regs_to_state_struct regs_to_cycle[] = { { 2, 2, 3, bit(SC_CTL_ON) },
                                                    { 2, 4, 4, bit(SC_BTN_A) },
                                                    { 2, 5, 5, bit(SC_BTN_START) },
+                                                   { 3, 0, 0, bit(SC_DPAD_UP) },
+                                                   { 3, 1, 1, bit(SC_DPAD_DOWN) },
+                                                   { 3, 2, 2, bit(SC_DPAD_LEFT) },
+                                                   { 3, 3, 3, bit(SC_DPAD_RIGHT) },
+                                                   { 3, 4, 4, bit(SC_BTN_B) },
+                                                   { 3, 5, 5, bit(SC_BTN_C) },
                                                    { 4, 0, 1, bit(SC_MODE) },
                                                    { 5, 0, 0, bit(SC_BTN_Z) },
                                                    { 5, 1, 1, bit(SC_BTN_Y) },
@@ -64,40 +85,15 @@ constexpr regs_to_state_struct regs_to_cycle[] = { { 0, 2, 3, bit(SC_CTL_ON) },
 
 constexpr word three_mode_buttons = bit(SC_CTL_ON) | bit(SC_BTN_START) | bit(SC_DPAD_UP) | bit(SC_DPAD_DOWN) | bit(SC_DPAD_LEFT) | bit(SC_DPAD_RIGHT) | bit(SC_BTN_A) | bit(SC_BTN_B) | bit(SC_BTN_C);
 
-#if defined(ARDUINO_AVR_MICRO)
-
-#define DDR_REG_select_Pin DDRD
-#define PORT_REG_selectPin PORTD
-#define PIN_REG_selectPin PIND
-
-#define DDR_REG_inputPins DDRB
-#define PORT_REG_inputPins PORTB
-#define PIN_REG_inputPins PINB
-
-#else
-
-#define DDR_REG_select_Pin DDRD
-#define PORT_REG_selectPin PORTD
-#define PIN_REG_selectPin PIND
-
-#define DDR_REG_inputPins DDRD
-#define PORT_REG_inputPins PORTD
-#define PIN_REG_inputPins PIND
-
-#endif
-
 constexpr byte SC_INPUT_PINS = 6;
 
 #define SC_READ_DELAY_MS 0  // Must be >= 3ms to give 6-button controller time to reset
 
-
 // Delay (µs) between setting the select pin and reading the button pins
 #if defined(ARDUINO_AVR_MICRO)
 constexpr unsigned long SC_CYCLE_DELAY_US = 6;
-#elif (F_CPU == 1000000L)
-constexpr unsigned long SC_CYCLE_DELAY_US = 2;
 #elif (F_CPU == 3686400L) || (F_CPU == 3276800L) || (F_CPU == 2000000L)
-constexpr unsigned long SC_CYCLE_DELAY_US = 2;
+constexpr unsigned long SC_CYCLE_DELAY_US = 3;
 #elif (F_CPU == 4000000L)
 constexpr unsigned long SC_CYCLE_DELAY_US = 4;  //4MHz: 0..5 -- retrobit,   0..20 - 8bido M30 2.4, 0..100 - chinesse no-name
 #elif (F_CPU == 6000000L) || (F_CPU == 7372800L) || (F_CPU == 8000000L)
