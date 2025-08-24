@@ -316,7 +316,7 @@ void setup() {
   byte __mode_combination_pressed__ = 0;
 
 
-  _delay_us(200);
+  _delay_ms(200);
   ///LOOP FOR C64-AMIGA/PULLUP combination
   while (reads_num < max_blinks) {
 
