@@ -315,7 +315,6 @@ void setup() {
   word _sega_state_in_setup = 0;
   byte __mode_combination_pressed__ = 0;
 
-
   _delay_ms(200);
   ///LOOP FOR C64-AMIGA/PULLUP combination
   while (reads_num < max_blinks) {
@@ -355,7 +354,7 @@ void setup() {
   }
 
   set_pullup_mode_in_setup(tmp_eeprom_stuff._packed_data);
-   //////////////////////////////////////////
+  //////////////////////////////////////////
 
   eeprom_stuff = tmp_eeprom_stuff;
 
@@ -447,11 +446,19 @@ void timer_instead_of_millis() {
   // Clear registers
   TCNT0 = 0;
 
+#if (F_CPU == 1000000L)
   // 269.3965517241379 Hz (1000000/((57+1)*64))
   OCR0A = 57;
 
   // CTC && Prescaler 64
   TCCR0A = bit(CTC0) | bit(CS01) | bit(CS00);
+#elif (F_CPU == 500000L)
+  // 270.56277056277054 Hz (500000/((230+1)*8))
+  OCR0A = 230;
+
+  // CTC && Prescaler 8
+  TCCR0A = bit(CTC0) | bit(CS01);
+#endif
 
   // Output Compare Match A Interrupt Enable
   TIMSK0 = bit(OCIE0A);
@@ -1077,7 +1084,7 @@ void push_stuff() {
                                       tmp_fire_rapid is "frozen" value of fire_rapid
                                     */
 
-  bool fire_output = (rapidfire_button | autofire_button | rapidfire_sw_button) ? (fire_single | tmp_fire_rapid) : fire_single;
+  bool fire_output = rapidfire_button | autofire_button | rapidfire_sw_button ? fire_single | tmp_fire_rapid : fire_single;
   set_btn(F1BTN, fire_output);
   /*fire_rapid is updated by ISR(TIMER1_COMPA_vect)
     thus update of F1BTN cannot depend upon
@@ -1087,20 +1094,16 @@ void push_stuff() {
   */
 
   if (rapid_up_down_btn) {
-    bool BTN_UP_RAPID = tmp_fire_rapid;
-    bool BTN_DOWN_RAPID = tmp_fire_rapid ^ 1;
-    set_btn(UBTN, BTN_UP_RAPID);
-    set_btn(DBTN, BTN_DOWN_RAPID);
+    set_btn(UBTN, tmp_fire_rapid);
+    set_btn(DBTN, tmp_fire_rapid ^ 1);
   } else {
     set_btn(DBTN, DPAD_DOWN | BTN_DOWN);  //DOWN
     set_btn(UBTN, DPAD_UP | BTN_UP);      //UP
   }
 
   if (rapid_left_right_btn) {
-    bool BTN_LEFT_RAPID = tmp_fire_rapid;
-    bool BTN_RIGHT_RAPID = tmp_fire_rapid ^ 1;
-    set_btn(LBTN, BTN_LEFT_RAPID);
-    set_btn(RBTN, BTN_RIGHT_RAPID);
+    set_btn(LBTN, tmp_fire_rapid);
+    set_btn(RBTN, tmp_fire_rapid ^ 1);
   } else {
     set_btn(RBTN, DPAD_RIGHT);
     set_btn(LBTN, DPAD_LEFT);

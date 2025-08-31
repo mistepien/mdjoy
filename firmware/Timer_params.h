@@ -1,7 +1,7 @@
-// FREQ0 = 7 CPS  (Quickgun Turbo Pro)
-// FREQ1 = 13 CPS (Zipstick)
-// FREQ2 = 29 CPS (Quickshot 128F)
-// FREQ3 = 62 CPS (Competition Pro - Transparent model / Quickshot TopStar SV 127)
+// FREQ0 = 14  //7 CPS  (Quickgun Turbo Pro)
+// FREQ1 = 26  //13 CPS (Zipstick)
+// FREQ2 = 58  //29 CPS (Quickshot 128F)
+// FREQ3 = 124 //62 CPS (Competition Pro - Transparent model / Quickshot TopStar SV 127)
 
 typedef struct {
   word ocr1a;
@@ -11,6 +11,9 @@ typedef struct {
 #if (F_CPU == 125000L)
  constexpr timer_configuration timer_params[4] = { {8927, 0}, {4806, 0}, {2154, 0}, {1007, 0} };
  //deviations: 0.000896453857421875 Hz, 0.00374412536621094 Hz, 0.004638671875 Hz, 0.0079345703125 Hz
+#elif (F_CPU == 128000L)
+ constexpr timer_configuration timer_params[4] = { {9141, 0}, {4922, 0}, {2205, 0}, {1031, 0} };
+ //deviations: 0.001312255859375 Hz, 0.000406265258789062 Hz, 0.0235710144042969 Hz, 0.031005859375 Hz
 #elif (F_CPU == 250000L)
  constexpr timer_configuration timer_params[4] = { {17856, 0}, {9614, 0}, {4309, 0}, {2015, 0} };
  //deviations: 0.000111579895019531 Hz, 0.00103950500488281 Hz, 0.004638671875 Hz, 0.0079345703125 Hz
