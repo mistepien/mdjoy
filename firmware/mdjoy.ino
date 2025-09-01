@@ -157,14 +157,15 @@ volatile bool reading_controller_flag = 0;
 volatile bool blinking_led = 0;
 volatile bool save_eeprom_flag = 0;
 bool ctl_on_flag = 0;
-bool rapidfire_button = 0;     //state of rapid button
-bool autofire_button = 0;      //"artificial" state of autofire_button
-bool rapidfire_sw = 0;         //to jest "stan" przełączenia przycisku FIRE(zwykłego) w tryb rapidfire
-bool rapidfire_sw_button = 0;  //to jest wciśnięcie przycisku FIRE będącego w trybie rapidfire
-bool fire_single = 0;          //to jest zwykły fire wciśnięty przez usera -- wciśnięty to strzał i tyle
-bool rapid_up_down_btn = 0;
-bool rapid_left_right_btn = 0;
-bool start_btn = 0;
+byte buttons = 0;
+constexpr byte rapidfire_button = 7;     //state of rapid button
+constexpr byte autofire_button = 2;      //"artificial" state of autofire_button
+constexpr byte rapidfire_sw = 0;         //to jest "stan" przełączenia przycisku FIRE(zwykłego) w tryb rapidfire
+constexpr byte rapidfire_sw_button = 3;  //to jest wciśnięcie przycisku FIRE będącego w trybie rapidfire
+constexpr byte fire_single = 4;          //to jest zwykły fire wciśnięty przez usera -- wciśnięty to strzał i tyle
+constexpr byte rapid_up_down_btn = 5;
+constexpr byte rapid_left_right_btn = 6;
+constexpr byte start_btn = 1;
 bool reset_flag = 0;
 byte ledstate = 0;
 byte joystate = 0;
@@ -508,7 +509,7 @@ ISR(TIMER2_COMPA_vect) {
   }
 
   static byte _counter_blinking;
-  if (rapidfire_sw | (1 ^ ctl_on_flag)) {
+  if (bitRead(buttons, rapidfire_sw) | (1 ^ ctl_on_flag)) {
     _counter_blinking = _counter_blinking > 40 ? 0 : _counter_blinking + 1;  //40 * 3,7ms = 148ms
 
     if (_counter_blinking == 0) {
@@ -633,12 +634,7 @@ void set_joyconf(byte conf) {
 }
 
 void reset_buttons() {
-  fire_single = 0;
-  rapidfire_button = 0;
-  rapid_up_down_btn = 0;
-  rapid_left_right_btn = 0;
-  autofire_button = 0;
-  start_btn = 0;
+  buttons = buttons & ~(bit(fire_single) | bit(rapidfire_button) | bit(rapid_up_down_btn) | bit(rapid_left_right_btn) | bit(autofire_button) | bit(start_btn));
   bitClear(joystate, F2BTN);
   bitClear(joystate, F3BTN);
   BTN_UP = 0;
@@ -651,7 +647,7 @@ void button(byte btn, bool btn_state) {  //that function is used in loop reading
   //and here we make a "choice" between different configurations
   button_basic(btn, btn_state);
 
-  if (start_btn) {
+  if (bitRead(buttons, start_btn)) {
     button_pressed_WITH_start_btn(btn, btn_state);  //   stb = 1, 6btn=x, alt=x
   } else {
     button_pressed_WITHOUT_start_btn(btn, btn_state);  //   stb = 0, 6btn=x, alt=x
@@ -668,31 +664,9 @@ void button(byte btn, bool btn_state) {  //that function is used in loop reading
     MODELED = 2,      //PC2
     */
 
-    switch ((ledstate >> CONF0LED) & 7) {
-      case 0:
-        button_conf0_3btnmode(btn, btn_state);
-        break;
-      case 1:
-        button_conf1_3btnmode(btn, btn_state);
-        break;
-      case 2:
-        button_conf2_3btnmode(btn, btn_state);
-        break;
-      case 3:
-        button_conf3_3btnmode(btn, btn_state);
-        break;
-      case 4:
-        button_conf0_6btnmode(btn, btn_state);
-        break;
-      case 5:
-        button_conf1_6btnmode(btn, btn_state);
-        break;
-      case 6:
-        button_conf2_6btnmode(btn, btn_state);
-        break;
-      case 7:
-        button_conf3_6btnmode(btn, btn_state);
-        break;
+    byte btn_action = button_conf((ledstate >> CONF0LED) & 7, btn);
+    if (btn_action) {
+      action_func(btn_action, btn_state);
     }
   }
 }
@@ -715,12 +689,12 @@ void button_basic(byte btn, bool btn_state) {
       break;
     case SC_MODE:
       reset_flag = 1;
-      rapidfire_sw = 0;
-      rapidfire_sw_button = 0;
+      bitClear(buttons, rapidfire_sw);
+      bitClear(buttons, rapidfire_sw_button);
       bitWrite(ledstate, MODELED, btn_state);
       break;
     case SC_BTN_START:  //START_BTN
-      start_btn = btn_state;
+      bitWrite(buttons, start_btn, btn_state);
       break;
     case SC_BTN_MODE:
       if (btn_state) {
@@ -771,15 +745,15 @@ void button_pressed_WITH_start_btn(byte btn, bool btn_state) {
     case SC_BTN_B:                           //+ START BTN
       if (bitRead(ledstate, MODELED) ^ 1) {  //disable rapidfire_sw in 6-btn mode
         if (btn_state) {
-          rapidfire_sw ^= 1;
-          if (rapidfire_sw) {
-            autofire_button = 0;
+          bitToggle(buttons, rapidfire_sw);
+          if (bitRead(buttons, rapidfire_sw)) {
+            bitClear(buttons, autofire_button);
           } else {
-            rapidfire_sw_button = 0;  //if rapidfire_sw=0 then rapidfire_sw_button=0, too
+            bitClear(buttons, rapidfire_sw_button);  //if rapidfire_sw=0 then rapidfire_sw_button=0, too
           }
         }
       } else {
-        fire_single = btn_state;
+        bitWrite(buttons, fire_single, btn_state);
       }
       break;
     case SC_BTN_C:  //+ START BTN
@@ -805,156 +779,195 @@ void button_pressed_WITHOUT_start_btn(byte btn, bool btn_state) {
       DPAD_RIGHT = btn_state;
       break;
     case SC_BTN_B:  //FIRE1
-      if (rapidfire_sw) {
-        rapidfire_sw_button = btn_state;
+      if (bitRead(buttons, rapidfire_sw)) {
+        bitWrite(buttons, rapidfire_sw_button, btn_state);
       } else {
-        fire_single = btn_state;
+        bitWrite(buttons, fire_single, btn_state);
       }
       break;
   }
 }
 
-void btn_rapidfire(bool btn_state) {
-  rapidfire_button = btn_state;
-}
+enum action_numbers {
+  UP_BTN = 1,
+  DOWN_BTN = 2,
+  RAPIDFIRE = 3,
+  AUTOFIRE = 4,
+  F2 = 5,
+  F3 = 6,
+  UP_DOWN_RAPIDFIRE = 7,
+  LEFT_RIGHT_RAPIDFIRE = 8
+};
 
-void btn_autofire(bool btn_state) {
-  if (btn_state) {
-    autofire_button ^= 1;
-    if (autofire_button) {
-      rapidfire_sw = 0;
-      if (rapidfire_sw_button) { /*fire button is pressed -- change its meaning
+void action_func(byte _num, bool btn_state) {
+  switch (_num) {
+    case F2:
+      set_btn(F2BTN, btn_state);
+      break;
+    case F3:
+      set_btn(F3BTN, btn_state);
+      break;
+    case RAPIDFIRE:
+      bitWrite(buttons, rapidfire_button, btn_state);
+      break;
+    case AUTOFIRE:
+      if (btn_state) {
+        bitToggle(buttons, autofire_button);
+        if (bitRead(buttons, autofire_button)) {
+          bitClear(buttons, rapidfire_sw);
+          if (bitRead(buttons, rapidfire_sw_button)) { /*fire button is pressed -- change its meaning
                                    from rapidfire_sw_button to file_single
                                   */
-        rapidfire_sw_button = 0;
-        fire_single = 1;
+            bitClear(buttons, rapidfire_sw_button);
+            bitSet(buttons, fire_single);
+          }
+        }
       }
-    }
-  }
-}
-
-void button_conf0_6btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //RAPIDFIRE
-      btn_rapidfire(btn_state);
       break;
-    case SC_BTN_C:  //UP BUTTON
+    case UP_BTN:
       BTN_UP = btn_state;
       break;
-    case SC_BTN_X:  //AUTOFIRE BUTTON
-      btn_autofire(btn_state);
-      break;
-    case SC_BTN_Y:  //F2
-      set_btn(F2BTN, btn_state);
-      break;
-    case SC_BTN_Z:  //F3
-      set_btn(F3BTN, btn_state);
-      break;
-  }
-}
-
-void button_conf1_6btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //UP BUTTON
+    case DOWN_BTN:
       BTN_UP = btn_state;
       break;
-    case SC_BTN_C:  //RAPIDFIRE
-      btn_rapidfire(btn_state);
+    case UP_DOWN_RAPIDFIRE:
+      bitWrite(buttons, rapid_up_down_btn, btn_state);
       break;
-    case SC_BTN_Z:  //AUTOFIRE BUTTON
-      btn_autofire(btn_state);
-      break;
-    case SC_BTN_Y:  //F2
-      set_btn(F2BTN, btn_state);
-      break;
-    case SC_BTN_X:  //F3
-      set_btn(F3BTN, btn_state);
+    case LEFT_RIGHT_RAPIDFIRE:
+      bitWrite(buttons, rapid_left_right_btn, btn_state);
       break;
   }
 }
 
-void button_conf2_6btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //RAPIDFIRE
-      btn_rapidfire(btn_state);
-      break;
-    case SC_BTN_Z:  //UP BUTTON
-      BTN_UP = btn_state;
-      break;
-    case SC_BTN_C:  //DOWN BUTTON
-      BTN_DOWN = btn_state;
-      break;
-    case SC_BTN_Y:  //F2
-      set_btn(F2BTN, btn_state);
-      break;
-    case SC_BTN_X:  //F3
-      set_btn(F3BTN, btn_state);
-      break;
-  }
-}
+byte button_conf(byte _conf_num, byte btn) {
+  byte action = 0;
 
-void button_conf3_6btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //RAPIDFIRE
-      btn_rapidfire(btn_state);
+  switch (_conf_num) {
+    case 0:
+      switch (btn) {
+        case SC_BTN_A:  //F2
+          action = F2;
+          break;
+        case SC_BTN_C:  //UP BUTTON
+          action = UP_BTN;
+          break;
+      }
       break;
-    case SC_BTN_C:  //LEFT-RIGHT RAPID BUTTON
-      rapid_left_right_btn = btn_state;
-      break;
-    case SC_BTN_X:  //F3
-      set_btn(F3BTN, btn_state);
-      break;
-    case SC_BTN_Y:  //F2
-      set_btn(F2BTN, btn_state);
-      break;
-    case SC_BTN_Z:  //UP-DOWN RAPID BUTTON
-      rapid_up_down_btn = btn_state;
-      break;
-  }
-}
 
-void button_conf0_3btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //F2
-      set_btn(F2BTN, btn_state);
+    case 1:
+      switch (btn) {
+        case SC_BTN_A:  //RAPIDFIRE
+          action = RAPIDFIRE;
+          break;
+        case SC_BTN_C:  //UP BUTTON
+          action = UP_BTN;
+          break;
+      }
       break;
-    case SC_BTN_C:  //UP BUTTON
-      BTN_UP = btn_state;
-      break;
-  }
-}
 
-void button_conf1_3btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //RAPIDFIRE
-      btn_rapidfire(btn_state);
+    case 2:
+      switch (btn) {
+        case SC_BTN_A:  //RAPIDFIRE
+          action = RAPIDFIRE;
+          break;
+        case SC_BTN_C:  //F2
+          action = F2;
+          break;
+      }
       break;
-    case SC_BTN_C:  //UP BUTTON
-      BTN_UP = btn_state;
-      break;
-  }
-}
 
-void button_conf2_3btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //RAPIDFIRE
-      btn_rapidfire(btn_state);
+    case 3:
+      switch (btn) {
+        case SC_BTN_A:  //LEFT-RIGHT RAPID BUTTON
+          action = LEFT_RIGHT_RAPIDFIRE;
+          break;
+        case SC_BTN_C:  //UP-DOWN RAPID BUTTON
+          action = UP_DOWN_RAPIDFIRE;
+          break;
+      }
       break;
-    case SC_BTN_C:  //F2
-      set_btn(F2BTN, btn_state);
-      break;
-  }
-}
 
-void button_conf3_3btnmode(byte btn, bool btn_state) {
-  switch (btn) {
-    case SC_BTN_A:  //LEFT-RIGHT RAPID BUTTON
-      rapid_left_right_btn = btn_state;
+    case 4:
+      switch (btn) {
+        case SC_BTN_A:  //RAPIDFIRE
+          action = RAPIDFIRE;
+          break;
+        case SC_BTN_C:  //UP BUTTON
+          action = UP_BTN;
+          break;
+        case SC_BTN_X:  //AUTOFIRE BUTTON
+          action = AUTOFIRE;
+          break;
+        case SC_BTN_Y:  //F2
+          action = F2;
+          break;
+        case SC_BTN_Z:  //F3
+          action = F3;
+          break;
+      }
       break;
-    case SC_BTN_C:  //UP-DOWN RAPID BUTTON
-      rapid_up_down_btn = btn_state;
+
+    case 5:
+      switch (btn) {
+        case SC_BTN_A:  //UP BUTTON
+          action = UP_BTN;
+          break;
+        case SC_BTN_C:  //RAPIDFIRE
+          action = RAPIDFIRE;
+          break;
+        case SC_BTN_Z:  //AUTOFIRE BUTTON
+          action = AUTOFIRE;
+          break;
+        case SC_BTN_Y:  //F2
+          action = F2;
+          break;
+        case SC_BTN_X:  //F3
+          action = F3;
+          break;
+      }
+      break;
+
+    case 6:
+      switch (btn) {
+        case SC_BTN_A:  //RAPIDFIRE
+          action = RAPIDFIRE;
+          break;
+        case SC_BTN_Z:  //UP BUTTON
+          action = UP_BTN;
+          break;
+        case SC_BTN_C:  //DOWN BUTTON
+          action = DOWN_BTN;
+          break;
+        case SC_BTN_Y:  //F2
+          action = F2;
+          break;
+        case SC_BTN_X:  //F3
+          action = F3;
+          break;
+      }
+      break;
+
+    case 7:
+      switch (btn) {
+        case SC_BTN_A:  //RAPIDFIRE
+          action = RAPIDFIRE;
+          break;
+        case SC_BTN_C:  //LEFT-RIGHT RAPID BUTTON
+          action = LEFT_RIGHT_RAPIDFIRE;
+          break;
+        case SC_BTN_X:  //F3
+          action = F3;
+          break;
+        case SC_BTN_Y:  //F2
+          action = F2;
+          break;
+        case SC_BTN_Z:  //UP-DOWN RAPID BUTTON
+          action = UP_DOWN_RAPIDFIRE;
+          break;
+      }
       break;
   }
+  return action;
 }
 
 void push_joystate_and_pullstate_to_register(byte _joystate) {
@@ -1049,11 +1062,11 @@ void process_state_controller(word current_gamepad_state) {
       reset_flag = 0;
     }
 
-    rapidfire_toggle(rapidfire_button | autofire_button | rapidfire_sw_button | rapid_left_right_btn | rapid_up_down_btn);
+    rapidfire_toggle(buttons & (bit(rapidfire_button) | bit(autofire_button) | bit(rapidfire_sw_button) | bit(rapid_left_right_btn) | bit(rapid_up_down_btn)));
 
     //when autofire is "on" -- AUTOFIRE LED is on (steady light)
-    if (1 ^ rapidfire_sw) {
-      bitWrite(ledstate, AUTOFIRELED, autofire_button);
+    if (1 ^ bitRead(buttons, rapidfire_sw)) {
+      bitWrite(ledstate, AUTOFIRELED, bitRead(buttons, autofire_button));
     }
 
     //join together DPAD_DOWN and BTN_DOWN -- BTN_UP prevails over DPAD_DOWN
@@ -1084,7 +1097,7 @@ void push_stuff() {
                                       tmp_fire_rapid is "frozen" value of fire_rapid
                                     */
 
-  bool fire_output = rapidfire_button | autofire_button | rapidfire_sw_button ? fire_single | tmp_fire_rapid : fire_single;
+  bool fire_output = buttons & (bit(rapidfire_button) | bit(autofire_button) | bit(rapidfire_sw_button)) ? bitRead(buttons, fire_single) | tmp_fire_rapid : bitRead(buttons, fire_single);
   set_btn(F1BTN, fire_output);
   /*fire_rapid is updated by ISR(TIMER1_COMPA_vect)
     thus update of F1BTN cannot depend upon
@@ -1093,7 +1106,7 @@ void push_stuff() {
     in every possible cycle
   */
 
-  if (rapid_up_down_btn) {
+  if (bitRead(buttons, rapid_up_down_btn)) {
     set_btn(UBTN, tmp_fire_rapid);
     set_btn(DBTN, tmp_fire_rapid ^ 1);
   } else {
@@ -1101,7 +1114,7 @@ void push_stuff() {
     set_btn(UBTN, DPAD_UP | BTN_UP);      //UP
   }
 
-  if (rapid_left_right_btn) {
+  if (bitRead(buttons, rapid_left_right_btn)) {
     set_btn(LBTN, tmp_fire_rapid);
     set_btn(RBTN, tmp_fire_rapid ^ 1);
   } else {
@@ -1111,7 +1124,7 @@ void push_stuff() {
 
   push_joystate_and_pullstate_to_register(joystate);
 
-  push_ledstate_to_register(ctl_on_flag_blinking(blinking_autofire_led(rapidfire_sw, ledstate)));
+  push_ledstate_to_register(ctl_on_flag_blinking(blinking_autofire_led(bitRead(buttons, rapidfire_sw), ledstate)));
 
   try_push_stuff_to_EEPROM();
 }
