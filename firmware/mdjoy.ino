@@ -53,7 +53,16 @@
   corresponding bit in the data register."
 
   That is more efficient since XOR operation is done in hardware, not software,
-  and it saves cycles since in code there is no need to bother about XOR.*/
+  and it saves cycles since in code there is no need to bother about XOR.
+  
+  That is available also in VPORT ATTiny chips (like ATTiny416):
+  
+  VPORTA.IN:
+  Bits 7:0 – IN[7:0] Input Value
+  This bit field shows the state of the PORTx pins when the digital input buffer is enabled.
+  Writing a ‘0’ to bit n in this bit field has no effect.
+  Writing a ‘1’ to bit n in this bit field will toggle the corresponding bit in PORTx.OUT.
+  */
 
 /*Source of these classic rapidfire frequencies - great input of Nightshft
   (Nightshft, thank you very much!):
@@ -137,6 +146,13 @@ constexpr byte ALL_LEDS = bit(CONF0LED) | bit(CONF1LED) | bit(AUTOFIRELED) | bit
 #include <EEPROM.h>
 #include "SegaController.h"
 #include "Timer_params.h"
+
+#define bitWrite(value, bit, state) \
+  (value) = ((value) & ~(1 << (bit))) | (-(state) & (1 << (bit)))
+#define bitRead(value, bit) ((value)&_BV(bit))
+#define bitSet(value, bit) ((value) |= _BV(bit))
+#define bitClear(value, bit) ((value) &= ~_BV(bit))
+#define bitToggle(value, bit) ((value) ^= _BV(bit))
 
 constexpr word _c64_amiga_combination = bit(SC_BTN_A) | bit(SC_BTN_B) | bit(SC_DPAD_DOWN) | bit(SC_DPAD_RIGHT);
 constexpr word _pullup_combination = bit(SC_BTN_A) | bit(SC_BTN_C) | bit(SC_DPAD_UP) | bit(SC_DPAD_LEFT);
@@ -275,8 +291,9 @@ void setup() {
   PINB = ATARI_JOY;  //PORTB is default to LOW, toggle to HIGH only ATARI_JOY
 
   //pull-up stuff
-  DDRC |= ALL_LEDS | bit(F3PULLUP) | bit(F2PULLUP);  //set all (except UNUSED_LP)to output
-                                                     //low by default
+  DDRC = 0xFF;
+  //DDRC |= ALL_LEDS | bit(F3PULLUP) | bit(F2PULLUP);  //set all to output
+  //low by default
 
   wdt_disable();
 
@@ -828,7 +845,7 @@ void action_func(byte _num, bool btn_state) {
       BTN_UP = btn_state;
       break;
     case DOWN_BTN:
-      BTN_UP = btn_state;
+      BTN_DOWN = btn_state;
       break;
     case UP_DOWN_RAPIDFIRE:
       bitWrite(buttons, rapid_up_down_btn, btn_state);
