@@ -663,9 +663,13 @@ void reset_buttons() {
 void button(byte btn, bool btn_state) {  //that function is used in loop reading every bit of controller's state
   //and here we make a "choice" between different configurations
   button_basic(btn, btn_state);
+  byte btn_action = button_conf((ledstate >> CONF0LED) & 7, btn);
 
   if (bitRead(buttons, start_btn)) {
     button_pressed_WITH_start_btn(btn, btn_state);  //   stb = 1, 6btn=x, alt=x
+    if (!btn_state) {
+      action_func(btn_action, btn_state);
+    }
   } else {
     button_pressed_WITHOUT_start_btn(btn, btn_state);  //   stb = 0, 6btn=x, alt=x
 
@@ -681,7 +685,6 @@ void button(byte btn, bool btn_state) {  //that function is used in loop reading
     MODELED = 2,      //PC2
     */
 
-    byte btn_action = button_conf((ledstate >> CONF0LED) & 7, btn);
     if (btn_action) {
       action_func(btn_action, btn_state);
     }
@@ -1166,7 +1169,7 @@ int main(void) {
 
   setup();
 
-  while (1) {
+  for (;;) {
     loop();
   }
 
