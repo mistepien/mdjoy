@@ -3,24 +3,6 @@
    Contact: mistepien@wp.pl
    License: GPLv3
  *********************************************/
-//
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
-//
-// The above copyright notice and this permission notice shall be included in
-// all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-// THE SOFTWARE.
 
 /*----------------------------------------
   |   DDRx   |   PORTx  |    result      |
@@ -38,14 +20,10 @@
   LOW(0) state of both registers is DEFAULT,
   thus every pin is in INPUT mode without doing anything.
 
-  ------------------            -----------------
-  |  HARDWARE XOR  |            |  SOFTWARE XOR |
-  ------------------            -----------------
-  PINx = byte;    <========>    PORTx ^= byte;
-
   ------------------
   |  HARDWARE XOR  |
   ------------------
+  PINx = byte;      <======>    PORTx ^= byte;
 
   "The port input pins I/O location is read only, while the data register and the
   data direction register are read/write. However, writing a logic one to a bit
@@ -53,9 +31,168 @@
   corresponding bit in the data register."
 
   That is more efficient since XOR operation is done in hardware, not software,
-  and it saves cycles since in code there is no need to bother about XOR.*/
+  and it saves cycles since in code there is no need to bother about XOR.
+  
+  That is available also in VPORT ATTiny chips (like ATTiny416):
+  
+  VPORTA.IN:
+  Bits 7:0 – IN[7:0] Input Value
+  This bit field shows the state of the PORTx pins when the digital input buffer is enabled.
+  Writing a ‘0’ to bit n in this bit field has no effect.
+  Writing a ‘1’ to bit n in this bit field will toggle the corresponding bit in PORTx.OUT.
 
-//https://retroramblings.net/?p=835 was very helpful
+
+
+  attiny416 (PORTx version):
+
+  // Set PA3 as OUTPUT:
+PORTA.DIRSET = (1 << 3);
+
+// Set PA3 as INPUT:
+PORTA.DIRCLR = (1 << 3);
+
+// Enable pull-up on PA3 (bit 3 in PIN3CTRL):
+PORTA.PIN3CTRL |= (1 << 3);
+
+// Disable pull-up on PA3:
+PORTA.PIN3CTRL &= ~(1 << 3);
+
+// Set PA3 HIGH:
+PORTA.OUTSET = (1 << 3);
+
+// Set PA3 LOW:
+PORTA.OUTCLR = (1 << 3);
+
+// Toggle PA3:
+PORTA.OUTTGL = (1 << 3);
+
+// Read PA3:
+uint8_t v = PORTA.IN & (1 << 3);
+
+// If PA3 is HIGH:
+if (PORTA.IN & (1 << 3)) {}
+
+// If PA3 is LOW:
+if (!(PORTA.IN & (1 << 3))) {}
+
+
+
+attiny416 (VPORTs version)
+
+// Set PA3 as OUTPUT:
+VPORTA.DIR |= (1 << 3);
+
+// Set PA3 as INPUT:
+VPORTA.DIR &= ~(1 << 3);
+
+// Enable pull-up on PA3:
+PORTA.PIN3CTRL |= (1 << 3);
+
+// Disable pull-up on PA3:
+PORTA.PIN3CTRL &= ~(1 << 3);
+
+// Set PA3 HIGH:
+VPORTA.OUT |= (1 << 3);
+
+// Set PA3 LOW:
+VPORTA.OUT &= ~(1 << 3);
+
+// Toggle PA3:
+VPORTA.IN |= (1 << 3);
+
+// Read PA3:
+uint8_t v = VPORTA.IN & (1 << 3);
+
+// If PA3 is HIGH:
+if (VPORTA.IN & (1 << 3)) {}
+
+// If PA3 is LOW:
+if (!(VPORTA.IN & (1 << 3))) {}
+
+
+Key points (why VPORT)
+
+  VPORTA behaves like classic AVR (PORTA, DDRA, etc.)
+  single-cycle access (fast, like ATmega)
+  still compatible with (1 << n) style
+  Only difference: pull-up lives outside VPORT
+
+ -- VPORT vs PORT — what’s the real difference?
+  1. VPORT (Virtual PORT)
+  Designed to behave like old ATmega-style registers
+
+Registers:
+VPORTA.DIR
+VPORTA.OUT
+VPORTA.IN
+
+✔ Single-cycle access (very fast)
+✔ Supports classic bit ops:
+
+VPORTA.OUT |= (1 << 3);
+VPORTA.OUT &= ~(1 << 3);
+
+✔ Maps to CPU I/O space → efficient instructions
+
+ 2. PORT (Full-featured peripheral)
+
+ Modern, feature-rich GPIO system
+
+Registers:
+PORTA.DIRSET, DIRCLR
+PORTA.OUTSET, OUTCLR, OUTTGL
+PORTA.IN
+PORTA.PINnCTRL ← config per pin
+
+✔ Atomic operations (no read-modify-write issues)
+✔ Per-pin configuration (pull-up, interrupt, inversion, etc.)
+✔ More flexible and safer
+
+⚡ Side-by-side example
+Using VPORT (classic style)
+VPORTA.DIR |= (1 << 3);
+VPORTA.OUT |= (1 << 3);
+
+Using PORT (modern style)
+PORTA.DIRSET = (1 << 3);
+PORTA.OUTSET = (1 << 3);
+
+ Both do the same thing
+ But the second is atomic and safer
+
+atmega48:
+// Set PA3 as OUTPUT:
+DDRA |= (1 << 3);
+
+// Set PA3 as INPUT:
+DDRA &= ~(1 << 3);
+
+// Enable pull-up on PA3 (must be input):
+DDRA &= ~(1 << 3); PORTA |= (1 << 3);
+
+// Disable pull-up on PA3:
+PORTA &= ~(1 << 3);
+
+// Set PA3 HIGH (output):
+PORTA |= (1 << 3);
+
+// Set PA3 LOW (output):
+PORTA &= ~(1 << 3);
+
+// Toggle PA3:
+PINA |= (1 << 3);
+
+// Read PA3:
+uint8_t v = PINA & (1 << 3);
+
+// If PA3 is HIGH:
+if (PINA & (1 << 3)) {}
+
+// If PA3 is LOW:
+if (!(PINA & (1 << 3))) {}
+
+  */
+
 
 #include "Arduino.h"
 #if defined(__AVR_ATtiny88__) || defined(__AVR_ATtiny48__)
@@ -63,12 +200,20 @@
 #endif
 #include "SegaController.h"
 
-#define _nop() __asm__ volatile("nop")
+// ==========================================================
+// INIT
+// ==========================================================
 
-void SegaController::begin(byte db9_pin_7, byte db9_pin_1, byte db9_pin_2, byte db9_pin_3, byte db9_pin_4, byte db9_pin_6, byte db9_pin_9) {
-  // Set pins
+void SegaController::begin(byte db9_pin_7, byte db9_pin_1, byte db9_pin_2,
+                           byte db9_pin_3, byte db9_pin_4,
+                           byte db9_pin_6, byte db9_pin_9) {
+
   byte _selectPin = db9_pin_7;
   _selectPin_bin = bit(_selectPin);
+
+  bitSet(DDR_REG_select_Pin, _selectPin);
+  bitSet(PORT_REG_selectPin, _selectPin);
+
   _inputPins[0] = bit(db9_pin_1);
   _inputPins[1] = bit(db9_pin_2);
   _inputPins[2] = bit(db9_pin_3);
@@ -76,118 +221,170 @@ void SegaController::begin(byte db9_pin_7, byte db9_pin_1, byte db9_pin_2, byte 
   _inputPins[4] = bit(db9_pin_6);
   _inputPins[5] = bit(db9_pin_9);
 
-
-  bitSet(DDR_REG_select_Pin, _selectPin);  // Setup selectPin as OUTPUT
-  bitSet(PORT_REG_selectPin, _selectPin);  // Setup selectPin as HIGH
-
-
-  /* Setup input pins
-
-  Default state of PINS is INPUT -- without INPUT_PULLUP
-  INPUT_PULLUP was not enough reliable in case of ATMEGA48PA
-  For MDJOY PCB 15K Ohm pull-up resistors are ok.
-  Thus _inputPin[x] are in INPUT (not INPUT_PULLUP) by default
-  */
-
-
 #if defined(ARDUINO_AVR_MICRO)
   byte _all_inputPins = 0;
   for (byte i = 0; i < SC_INPUT_PINS; i++) {
     _all_inputPins |= _inputPins[i];
   }
-  //DDR_REG_inputPins &= ~_all_inputPins; //INPUT by default
-  PORT_REG_inputPins |= _all_inputPins;  //INPUT_PULLUP
+  PORT_REG_inputPins |= _all_inputPins;
 #endif
+
+  init_cycle_masks();
 }
+
+// ==========================================================
+// MASK INIT
+// ==========================================================
+
+inline void SegaController::init_cycle_masks() {
+
+  _mask_c2_btnA = _inputPins[4];
+  _mask_c2_start = _inputPins[5];
+  _mask_c2_ctl1 = _inputPins[2];
+  _mask_c2_ctl2 = _inputPins[3];
+
+  _mask_c3_up = _inputPins[0];
+  _mask_c3_down = _inputPins[1];
+  _mask_c3_left = _inputPins[2];
+  _mask_c3_right = _inputPins[3];
+  _mask_c3_b = _inputPins[4];
+  _mask_c3_c = _inputPins[5];
+
+  _mask_c4_mode1 = _inputPins[0];
+  _mask_c4_mode2 = _inputPins[1];
+
+  _mask_c5_z = _inputPins[0];
+  _mask_c5_y = _inputPins[1];
+  _mask_c5_x = _inputPins[2];
+  _mask_c5_mode = _inputPins[3];
+
+  _mask_c6_home = _inputPins[0];
+
+  _mask_c2_ctl = _mask_c2_ctl1 | _mask_c2_ctl2;
+  _mask_c4_mode = _mask_c4_mode1 | _mask_c4_mode2;
+}
+
+// ==========================================================
+// TEMPLATE UNROLLED READER
+// ==========================================================
+
+template<byte N>
+inline void read_cycle(byte*& p, byte select_mask) {
+
+  PIN_REG_selectPin = select_mask;
+
+  __builtin_avr_delay_cycles(SEGA_DELAY_CYCLES);
+
+  *p++ = PIN_REG_inputPins;
+
+  if constexpr (N > 1)
+    read_cycle<N - 1>(p, select_mask);
+}
+
+// ==========================================================
+// GET STATE
+// ==========================================================
 
 word SegaController::getState() {
 
-
-#if SC_READ_DELAY_MS > 0
-  static word _currentState;
-  static unsigned long _lastReadTime;
-  if ((millis() - _lastReadTime) < SC_READ_DELAY_MS) {
-    // Not enough time has elapsed, return previously read state
-    return _currentState;
-  }
-#else
-  word _currentState = 0;
-#endif
-
-
-  byte _readCycle_regs[8];
+  byte _readCycle_regs[8] __attribute__((aligned(8)));
 
   noInterrupts();
 
-/*Here is the most time sensitive piece of code.
-  Being slow means failure in communication  with gamepad.
-  SEGA gamepad readings of port registers are dumped to the byte array.
-  It works like a kind of shiftIn -- but output is not a byte but
-  an array of bytes.
-
-  That's all folks!
-
-  BTW, from technical point of view Sega Genesis 6button game pad
-  protocol is just a piece of crap. Expansion from 3button to 6button
-  made it very dependent upon very accurate delay :D
-  For instance SNES gamepad protocol is much better.
-  */
-#pragma GCC unroll 8
-  for (byte cycle = 0; cycle < 8; cycle++) {
-    PIN_REG_selectPin = _selectPin_bin;  //hardware XOR
-#if ((F_CPU == 500000L) || (F_CPU == 1000000L))
-    _nop();
-#else
-    _delay_us(SC_CYCLE_DELAY_US);
-#endif
-    _readCycle_regs[cycle] = PIN_REG_inputPins;
-  }
+  byte* p = _readCycle_regs;
+  read_cycle<8>(p, _selectPin_bin);
 
   interrupts();
 
-  /*Here slowness is not an issue any more since reading of Sega gamepad is already done.
-  What happens is processing of already collected data and producing output.*/
+  return build_state_fast_raw(_readCycle_regs);
+}
 
-#if SC_READ_DELAY_MS > 0
-  _currentState = 0;  // Clear current state if _currentState is static
-#endif
+// ==========================================================
+// FAST DECODE (STRICT MATCHING VERSION)
+// ==========================================================
 
-  for (byte i = 0; i < 15; i++) {
-    byte __input_pins_bits__ = _inputPins[regs_to_cycle[i]._ipin_first] | _inputPins[regs_to_cycle[i]._ipin_second];
-    byte __cycle__ = ~(_readCycle_regs[regs_to_cycle[i]._cycle]);
-    if (complex_bool_value(__cycle__, __input_pins_bits__)) {
-      _currentState |= regs_to_cycle[i]._output_bit;
-    }
+inline word SegaController::build_state_fast_raw(const byte* _readCycle_regs) {
+
+  byte _cycle2 = ~_readCycle_regs[2];
+  byte _cycle3 = ~_readCycle_regs[3];
+  byte _cycle4 = ~_readCycle_regs[4];
+  byte _cycle5 = ~_readCycle_regs[5];
+  byte _cycle6 = ~_readCycle_regs[6];
+
+  // ==========================================================
+  // AUTO-RESET (controller unplugged)
+  // ==========================================================
+
+  byte _any = _cycle2 | _cycle3 | _cycle4;
+  _any |= _cycle5 | _cycle6;
+  if (!_any) return 0;
+
+  word _state = 0;
+
+  // ==========================================================
+  // CYCLE 2
+  // ==========================================================
+
+  if ((_cycle2 & _mask_c2_btnA) == _mask_c2_btnA) _state |= B_SC_BTN_A;
+  if ((_cycle2 & _mask_c2_start) == _mask_c2_start) _state |= B_SC_BTN_START;
+  if ((_cycle2 & _mask_c2_ctl) == _mask_c2_ctl) _state |= B_SC_CTL_ON;
+
+  // ==========================================================
+  // CYCLE 3
+  // ==========================================================
+
+  if ((_cycle3 & _mask_c3_up) == _mask_c3_up) _state |= B_SC_DPAD_UP;
+  if ((_cycle3 & _mask_c3_down) == _mask_c3_down) _state |= B_SC_DPAD_DOWN;
+  if ((_cycle3 & _mask_c3_left) == _mask_c3_left) _state |= B_SC_DPAD_LEFT;
+  if ((_cycle3 & _mask_c3_right) == _mask_c3_right) _state |= B_SC_DPAD_RIGHT;
+  if ((_cycle3 & _mask_c3_b) == _mask_c3_b) _state |= B_SC_BTN_B;
+  if ((_cycle3 & _mask_c3_c) == _mask_c3_c) _state |= B_SC_BTN_C;
+
+  // ==========================================================
+  // CYCLE 4 → MODE (STRICT)
+  // ==========================================================
+
+  byte _is6btn = ((_cycle4 & _mask_c4_mode) == _mask_c4_mode);
+  _state |= _is6btn << SC_MODE;
+
+  // ==========================================================
+  // CYCLE 5 (STRICT)
+  // ==========================================================
+
+  if ((_cycle5 & _mask_c5_z) == _mask_c5_z) _state |= B_SC_BTN_Z;
+  if ((_cycle5 & _mask_c5_y) == _mask_c5_y) _state |= B_SC_BTN_Y;
+  if ((_cycle5 & _mask_c5_x) == _mask_c5_x) _state |= B_SC_BTN_X;
+  if ((_cycle5 & _mask_c5_mode) == _mask_c5_mode) _state |= B_SC_BTN_MODE;
+
+  // ==========================================================
+  // CYCLE 6
+  // ==========================================================
+
+  if ((_cycle6 & _mask_c6_home) == _mask_c6_home) {
+    _state |= B_SC_BTN_HOME;
+  }
+  // ==========================================================
+  // EXTRA SAFETY (disable extended buttons if not 6btn)
+  // ==========================================================
+
+  if (!_is6btn) {
+    _state &= ~(B_SC_BTN_HOME | B_SC_BTN_Z | B_SC_BTN_Y | B_SC_BTN_X | B_SC_BTN_MODE);
   }
 
-  if (!(_currentState & bit(SC_MODE))) {  //in 3-button mode buttons X,Y,Z,MODE and HOME are never pressed
-    _currentState &= three_mode_buttons;
-  }
+  // ==========================================================
+  // POST PROCESSING
+  // ==========================================================
 
-  _currentState = nod(_currentState, bit(SC_DPAD_UP) | bit(SC_DPAD_DOWN));     //NO OPPOSITE DIRECTIONS
-  _currentState = nod(_currentState, bit(SC_DPAD_RIGHT) | bit(SC_DPAD_LEFT));  //NO OPPOSITE DIRECTIONS
+  // ---- cancel opposite directions ----
+  if ((_state & MASK_UD) == MASK_UD) _state ^= MASK_UD;
+  if ((_state & MASK_LR) == MASK_LR) _state ^= MASK_LR;
 
-  _currentState = _currentState & bit(SC_CTL_ON) ? _currentState : 0;
+  // ---- apply SN_CTL_ON ----
+  if (!(_state & B_SC_CTL_ON)) return 0;
 
-  /*end of puting MD state into one word variable (_current)*/
-
-
-#if SC_READ_DELAY_MS > 0
-  _lastReadTime = millis();
-#endif
-
-  return _currentState;
+  return _state;
 }
 
-
-word SegaController::nod(word _input_state, word _dpad_dirs) {
-  word xor_output = (_input_state & _dpad_dirs) ^ _dpad_dirs;
-  return xor_output ? _input_state : (_input_state & ~(_dpad_dirs));
-}
-
-bool SegaController::complex_bool_value(byte big_byte, byte tested_byte) {
-  bool ___output = (big_byte & tested_byte) ^ tested_byte ? 0 : 1;
-  return ___output;
-}
+// ==========================================================
 
 SegaController sega;
